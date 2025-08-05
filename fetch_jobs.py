@@ -25,11 +25,24 @@ def fetch_offer_description(url):
         print(f"⚠️ Error fetching description from {url}: {e}")
         return ""
 
-def fetch_and_parse_job_offers(category, location, keyword):
+def fetch_and_parse_job_offers(category, location, workplace, keyword, role):
     """Fetch the job listing page and parse the list of offers."""
     base_url = "https://justjoin.it/job-offers"
-    url = f"{base_url}/{location}/{category}"
-    params = {"keyword": keyword} if keyword else {}
+
+    # Build the path based on whether category is provided
+    if category:
+        url = f"{base_url}/{location}/{category}"
+    else:
+        url = f"{base_url}/{location}"
+
+    # Add optional query params
+    params = {}
+    if workplace:
+        params["workplace"] = workplace
+    if keyword:
+        params["keyword"] = keyword
+    if role:
+        params["titles"] = role
 
     response = requests.get(url, params=params)
     response.raise_for_status()
@@ -101,17 +114,19 @@ def fetch_and_parse_job_offers(category, location, keyword):
 
 def main():
     parser = argparse.ArgumentParser(description="Scrape job offers from JustJoin.it")
-    parser.add_argument("--category", type=str, default="pm", help="Job category (e.g., pm, backend, frontend)")
-    parser.add_argument("--location", type=str, default="remote", help="Job location (e.g., warszawa, remote)")
+    parser.add_argument("--category", type=str, default="", help="Job category (e.g., pm, backend, frontend)")
+    parser.add_argument("--location", type=str, default="all-locations", help="Job location (e.g., warszawa, remote)")
+    parser.add_argument("--workplace", type=str, default="", help="type of office policy (e.g.office, hybrid - optional)")
     parser.add_argument("--keyword", type=str, default="", help="Keyword to search (optional)")
+    parser.add_argument("--role", type=str, default="", help="job role to search for (optional)")
     args = parser.parse_args()
 
-    print(f"🔍 Searching for jobs in category '{args.category}' at location '{args.location}' with keyword '{args.keyword}'\n")
+    print(f"🔍 Searching for jobs in category '{args.category}' at location '{args.location}' in modality '{args.workplace}' with keyword '{args.keyword}' and job role '{args.role}'\n")
 
-    offers = fetch_and_parse_job_offers(args.category, args.location, args.keyword)
+    offers = fetch_and_parse_job_offers(args.category, args.location, args.workplace, args.keyword, args.role)
 
     # Save to CSV
-    csv_file = f"job_offers_{args.category}_{args.location}.csv"
+    csv_file = f"job_offers_{args.category}_{args.location}_{args.workplace}_{args.keyword}_{args.role}.csv"
     with open(csv_file, mode="w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=offers[0].keys())
         writer.writeheader()

@@ -1,6 +1,7 @@
 import os
 import csv
 import openai
+import re
 from openai import OpenAI
 import pandas as pd
 from dotenv import load_dotenv
@@ -47,10 +48,32 @@ def assess_job_offer(cv_text, job_data):
         answer = response.choices[0].message.content
 
         # Parse the response
-        score_line = next((line for line in answer.splitlines() if "Score:" in line), "Score: 0")
+        #score_line = next((line for line in answer.splitlines() if "Score:" in line), "Score: 0")
+        #reason_line = next((line for line in answer.splitlines() if "Reason:" in line), "Reason: Not provided.")
+
+        #score = int("".join(filter(str.isdigit, score_line)))
+        #reason = reason_line.replace("Reason:", "").strip()
+
+        # return min(max(score, 1), 100), reason
+
+        # Extract score line
+        score_line = next((line for line in answer.splitlines() if "Score:" in line), None)
         reason_line = next((line for line in answer.splitlines() if "Reason:" in line), "Reason: Not provided.")
 
-        score = int("".join(filter(str.isdigit, score_line)))
+        if score_line:
+            try:
+                # Search for an integer after "Score:"
+                match = re.search(r"Score:\s*(\d+)", score_line)
+                if match:
+                    score = int(match.group(1))
+                else:
+                    score = 0
+            except ValueError:
+                score = 0
+        else:
+            score = 0
+
+        # Clean up reason
         reason = reason_line.replace("Reason:", "").strip()
 
         return min(max(score, 1), 100), reason
@@ -68,6 +91,8 @@ def main():
     parser.add_argument("--input", required=True, help="Path to input CSV file from the scraper")
     parser.add_argument("--cv", required=True, help="Path to the CV text file")
     parser.add_argument("--output", default="scored_job_offers.csv", help="Output CSV file")
+    parser.add_argument("--separator", default=",", help="CSV separator (default is ',')")
+
     args = parser.parse_args()
 
     # Read CV
@@ -75,7 +100,8 @@ def main():
         cv_text = cv_file.read()
 
     # Read job offers CSV
-    df = pd.read_csv(args.input)
+    print(f"📂 Reading input CSV '{args.input}' using separator '{args.separator}'")
+    df = pd.read_csv(args.input, sep=args.separator)
 
     # Prepare result columns
     match_scores = []
@@ -87,15 +113,15 @@ def main():
         score, reason = assess_job_offer(cv_text, row)
         match_scores.append(score)
         match_reasons.append(reason)
-        # Optional: add delay here if you want to avoid rate limits
 
     # Add results to DataFrame
     df["Match Score (%)"] = match_scores
     df["Match Reason"] = match_reasons
 
-    # Save to CSV
-    df.to_csv(args.output, index=False)
+    # Save to CSV with the same separator
+    df.to_csv(args.output, index=False, sep=args.separator)
     print(f"\n✅ Saved scored results to '{args.output}'")
+
 
 if __name__ == "__main__":
     main()
